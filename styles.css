@@ -157,3 +157,6 @@ dialog::backdrop { background: rgba(0,0,0,.4); }
 .link { cursor: pointer; }
 .link .pen { color: var(--muted); font-weight: 400; font-size: 12px; }
 .link:hover { color: var(--accent); }
+
+.aviso { display: inline-block; margin: 3px 4px 4px 0; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 99px; background: var(--warn-soft); color: var(--warn); }
+.aviso.cumple { background: var(--accent-soft); color: var(--accent); }

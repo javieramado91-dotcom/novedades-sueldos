@@ -35,6 +35,20 @@ function antiguedad(iso, p) {
   if (!iso) return null; const [y, m] = iso.split('-').map(Number); const [py, pm] = p.split('-').map(Number);
   let a = py - y; if (pm < m) a--; return a;
 }
+// Avisos del mes para un empleado: aniversario de antigüedad y cumpleaños
+function eventos(e, p) {
+  const out = []; const m = p.slice(5, 7);
+  if (e.ingreso && e.ingreso.slice(5, 7) === m) {
+    const a = antiguedad(e.ingreso, p);
+    if (a > 0) out.push({ tipo: 'antig', txt: `🎉 Cumple ${a} año${a > 1 ? 's' : ''} de antigüedad el ${fechaAR(e.ingreso).slice(0, 5)}` });
+  }
+  if (e.nacimiento && e.nacimiento.slice(5, 7) === m) {
+    const edad = antiguedad(e.nacimiento, p);
+    out.push({ tipo: 'cumple', txt: `🎂 Cumple ${edad} años el ${fechaAR(e.nacimiento).slice(0, 5)}` });
+  }
+  return out;
+}
+const avisosHTML = (e, p) => eventos(e, p).map(v => `<span class="aviso ${v.tipo}">${esc(v.txt)}</span>`).join('');
 function atajos() { return db.atajos?.length ? db.atajos : CHIPS; }
 function clientesOrd() { return db.clientes; }
 function empsDe(cid, soloActivos = true) { return db.empleados.filter(e => e.clienteId === cid && (!soloActivos || e.activo)); }
@@ -83,9 +97,10 @@ function vistaControl() {
     const n = [k.recibos, k.confirmado, k.f931].filter(Boolean).length; tot += 3; ok += n;
     const nEmp = empsDe(c.id).filter(e => activoEn(e, periodo)).length;
     const conNov = empsDe(c.id).filter(e => nov(e.id, periodo).texto).length;
+    const nAv = empsDe(c.id).reduce((t, e) => t + eventos(e, periodo).length, 0);
     return `<tr class="${n === 3 ? 'done' : ''}">
       <td><div class="emp-name link" data-act="edit-cli" data-id="${c.id}" title="Editar empleador">${esc(c.nombre)} <span class="pen">✎</span></div>
-        <div class="small muted">${esc(c.convenio)} · ${nEmp} emp.${conNov ? ` · <span class="tag warn">${conNov} novedad${conNov > 1 ? 'es' : ''}</span>` : ''}</div>
+        <div class="small muted">${esc(c.convenio)} · ${nEmp} emp.${nAv ? ` · <span class="tag warn">🎉 ${nAv}</span>` : ''}${conNov ? ` · <span class="tag warn">${conNov} novedad${conNov > 1 ? 'es' : ''}</span>` : ''}</div>
         <div class="nota-mini" data-act="nota-ctl" data-id="${c.id}">${esc(k.nota)}</div></td>
       <td class="chk"><input type="checkbox" class="tick" data-ctl="recibos" data-id="${c.id}" ${k.recibos ? 'checked' : ''} aria-label="Recibos"></td>
       <td class="chk"><input type="checkbox" class="tick" data-ctl="confirmado" data-id="${c.id}" ${k.confirmado ? 'checked' : ''} aria-label="Confirmado"></td>
@@ -119,6 +134,7 @@ function alertasMes() {
       const a = antiguedad(e.ingreso, periodo);
       if (a > 0) out.push(`<b>Antigüedad:</b> ${esc(e.nombre)} (${esc(cli)}) cumple ${a} año${a > 1 ? 's' : ''} el ${fechaAR(e.ingreso).slice(0, 5)}.`);
     }
+    if (e.nacimiento && e.nacimiento.slice(5, 7) === periodo.slice(5, 7)) out.push(`<b>Cumpleaños:</b> ${esc(e.nombre)} (${esc(cli)}) cumple ${antiguedad(e.nacimiento, periodo)} años el ${fechaAR(e.nacimiento).slice(0, 5)}.`);
     if (e.baja && e.baja.slice(0, 7) === periodo) out.push(`<b>Baja:</b> ${esc(e.nombre)} (${esc(cli)}) el ${fechaAR(e.baja)} — liquidación final.`);
   }
   return out;
@@ -143,13 +159,15 @@ function vistaNovedades() {
             <button type="button" class="mini" data-act="edit-emp" data-id="${e.id}" title="Editar empleado">✎</button>
             ${n.texto || n.hecho ? `<button type="button" class="mini" data-act="clr-nov" data-id="${e.id}" title="Borrar novedad del mes">🗑</button>` : ''}</div>
           <div class="meta">${c.convenio === 'DOMESTICOS' || e.empleador !== c.razon ? esc(e.empleador) + ' · ' : ''}${esc(e.tarea)}${a !== null ? ` · ${a} año${a === 1 ? '' : 's'} antig.` : ''}</div>
+          ${avisosHTML(e, periodo)}
           <textarea rows="1" data-nov-txt="${e.id}" placeholder="Novedad del mes…">${esc(n.texto)}</textarea>
           <div class="chips">${atajos().map(ch => `<button type="button" class="chip" data-chip="${esc(ch)}" data-emp="${e.id}">${esc(ch)}</button>`).join('')}</div>
         </div></div>`;
     }).join('');
-    return `<details class="card cli" ${q || conTxt ? 'open' : ''}><summary class="card-h">
+    const nAv = emps.reduce((t, e) => t + eventos(e, periodo).length, 0);
+    return `<details class="card cli" ${q || conTxt || nAv ? 'open' : ''}><summary class="card-h">
         <span class="chev">▶</span><h3 class="grow">${esc(c.nombre)}</h3>
-        ${conTxt ? `<span class="tag warn">${conTxt}</span>` : ''}
+        ${nAv ? `<span class="tag warn">🎉 ${nAv}</span>` : ''}${conTxt ? `<span class="tag warn">${conTxt}</span>` : ''}
         <span class="tag ${hechos === emps.length && emps.length ? 'ok' : ''}">${hechos}/${emps.length}</span></summary>
       <div class="card-b">${items || '<div class="muted small">Sin empleados activos.</div>'}
         <div class="row" style="margin-top:8px;border-top:1px solid var(--line);padding-top:8px">
@@ -177,7 +195,7 @@ function vistaFichas() {
   const tabla = (y) => MESES.map((mn, i) => {
     const p = `${y}-${String(i + 1).padStart(2, '0')}`; const n = nov(e.id, p);
     return `<tr><td class="mes">${mn}</td><td class="x"><input type="checkbox" class="tick" data-nov-hecho="${e.id}" data-p="${p}" ${n.hecho ? 'checked' : ''} aria-label="Liquidado ${mn}"></td>
-      <td><input class="cell" data-nov-txt="${e.id}" data-p="${p}" value="${esc(n.texto)}" aria-label="Novedad ${mn}"></td>
+      <td>${avisosHTML(e, p)}<input class="cell" data-nov-txt="${e.id}" data-p="${p}" value="${esc(n.texto)}" aria-label="Novedad ${mn}"></td>
       <td class="x no-print">${n.texto || n.hecho ? `<button type="button" class="mini" data-act="clr-nov" data-id="${e.id}" data-p="${p}" title="Borrar ${mn}">🗑</button>` : ''}</td></tr>`;
   }).join('');
   return `<h2>Ficha anual</h2>
@@ -198,7 +216,7 @@ function vistaFichas() {
         <div><b>Empleado:</b> ${esc(e.nombre)}</div><div><b>CUIL:</b> ${esc(e.cuil)}</div>
         <div><b>Empleador:</b> ${esc(e.empleador)} ${esc(e.cuitEmpleador)}</div><div><b>Jornada:</b> ${esc(e.jornada)}</div>
         <div><b>Fecha ingreso:</b> ${fechaAR(e.ingreso)} ${e.ingreso ? `(${antiguedad(e.ingreso, `${anio}-12`)} años a dic.)` : ''}</div><div><b>Tarea:</b> ${esc(e.tarea)}</div>
-        <div><b>Convenio:</b> ${esc(e.convenio)}</div>${e.legajo ? `<div><b>Legajo:</b> ${esc(e.legajo)}</div>` : ''}
+        <div><b>Convenio:</b> ${esc(e.convenio)}</div>${e.nacimiento ? `<div><b>Nacimiento:</b> ${fechaAR(e.nacimiento)}</div>` : ''}${e.legajo ? `<div><b>Legajo:</b> ${esc(e.legajo)}</div>` : ''}
         ${e.obs ? `<div style="grid-column:1/-1"><b>Obs.:</b> ${esc(e.obs)}</div>` : ''}
       </div>
       <table class="ficha"><thead><tr><th>Meses</th><th class="x">Liq.</th><th>Novedad</th><th class="x no-print"></th></tr></thead>
@@ -290,7 +308,7 @@ async function editarEmpleado(e, clienteId) {
     ingreso: '', tarea: '', convenio: cli?.convenio || '', jornada: 'MENSUAL', activo: true, baja: '', obs: '' };
   const r = await dialogo(nuevo ? 'Nuevo empleado' : 'Editar empleado', `<div class="grid2">
     ${campo('nombre', 'Apellido y nombre', e.nombre, 'text', 'required')}${campo('cuil', 'CUIL', e.cuil)}
-    ${campo('ingreso', 'Fecha de ingreso', e.ingreso, 'date')}${campo('tarea', 'Tarea / categoría', e.tarea)}
+    ${campo('ingreso', 'Fecha de ingreso', e.ingreso, 'date')}${campo('nacimiento', 'Fecha de nacimiento', e.nacimiento || '', 'date')}${campo('tarea', 'Tarea / categoría', e.tarea)}
     ${campo('convenio', 'Convenio', e.convenio)}${campo('jornada', 'Jornada / modalidad', e.jornada)}
     ${campo('empleador', 'Empleador (razón social)', e.empleador)}${campo('cuitEmpleador', 'CUIT empleador', e.cuitEmpleador)}
     ${campo('legajo', 'Legajo', e.legajo)}
