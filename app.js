@@ -456,7 +456,12 @@ $('#nextMes').onclick = () => setPeriodo(sumarMes(periodo, 1));
 let promptInstalar;
 addEventListener('beforeinstallprompt', e => { e.preventDefault(); promptInstalar = e; $('#btnInstalar').hidden = false; });
 $('#btnInstalar').onclick = async () => { if (!promptInstalar) return; promptInstalar.prompt(); await promptInstalar.userChoice; promptInstalar = null; $('#btnInstalar').hidden = true; };
-if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js');
+if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+  // Cuando se publica una versión nueva, se instala y la página se recarga sola
+  const habiaSW = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => r.update());
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (habiaSW) location.reload(); });
+}
 if (navigator.storage?.persist) navigator.storage.persist();
 
 render();
