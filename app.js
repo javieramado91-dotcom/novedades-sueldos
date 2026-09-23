@@ -35,6 +35,7 @@ function antiguedad(iso, p) {
   if (!iso) return null; const [y, m] = iso.split('-').map(Number); const [py, pm] = p.split('-').map(Number);
   let a = py - y; if (pm < m) a--; return a;
 }
+function atajos() { return db.atajos?.length ? db.atajos : CHIPS; }
 function clientesOrd() { return db.clientes; }
 function empsDe(cid, soloActivos = true) { return db.empleados.filter(e => e.clienteId === cid && (!soloActivos || e.activo)); }
 function activoEn(e, p) {
@@ -83,7 +84,7 @@ function vistaControl() {
     const nEmp = empsDe(c.id).filter(e => activoEn(e, periodo)).length;
     const conNov = empsDe(c.id).filter(e => nov(e.id, periodo).texto).length;
     return `<tr class="${n === 3 ? 'done' : ''}">
-      <td><div class="emp-name">${esc(c.nombre)}</div>
+      <td><div class="emp-name link" data-act="edit-cli" data-id="${c.id}" title="Editar empleador">${esc(c.nombre)} <span class="pen">✎</span></div>
         <div class="small muted">${esc(c.convenio)} · ${nEmp} emp.${conNov ? ` · <span class="tag warn">${conNov} novedad${conNov > 1 ? 'es' : ''}</span>` : ''}</div>
         <div class="nota-mini" data-act="nota-ctl" data-id="${c.id}">${esc(k.nota)}</div></td>
       <td class="chk"><input type="checkbox" class="tick" data-ctl="recibos" data-id="${c.id}" ${k.recibos ? 'checked' : ''} aria-label="Recibos"></td>
@@ -101,7 +102,8 @@ function vistaControl() {
     <div class="progress" style="margin-bottom:12px"><div style="width:${pct}%"></div></div>
     <div class="card"><div class="card-b" style="padding-top:4px">
     ${cs.length ? `<table class="ctl-table"><thead><tr><th>Empleador</th><th>Recibos</th><th>Confirm.</th><th>F931 y comp.</th></tr></thead><tbody>${filas}</tbody></table>`
-      : `<div class="empty">No hay empleadores. Agregalos en la pestaña Empleados.</div>`}
+      : `<div class="empty">No hay empleadores todavía.</div>`}
+    <div class="row" style="margin-top:10px"><button class="btn sm" data-act="nuevo-cli">+ Agregar empleador</button></div>
     </div></div>`;
 }
 
@@ -137,17 +139,22 @@ function vistaNovedades() {
       return `<div class="nov-emp">
         <input type="checkbox" class="tick" data-nov-hecho="${e.id}" ${n.hecho ? 'checked' : ''} title="Liquidado" aria-label="Liquidado">
         <div class="grow">
-          <div class="who">${esc(e.nombre)}</div>
+          <div class="row"><div class="who grow">${esc(e.nombre)}</div>
+            <button type="button" class="mini" data-act="edit-emp" data-id="${e.id}" title="Editar empleado">✎</button>
+            ${n.texto || n.hecho ? `<button type="button" class="mini" data-act="clr-nov" data-id="${e.id}" title="Borrar novedad del mes">🗑</button>` : ''}</div>
           <div class="meta">${c.convenio === 'DOMESTICOS' || e.empleador !== c.razon ? esc(e.empleador) + ' · ' : ''}${esc(e.tarea)}${a !== null ? ` · ${a} año${a === 1 ? '' : 's'} antig.` : ''}</div>
           <textarea rows="1" data-nov-txt="${e.id}" placeholder="Novedad del mes…">${esc(n.texto)}</textarea>
-          <div class="chips">${CHIPS.map(ch => `<button type="button" class="chip" data-chip="${esc(ch)}" data-emp="${e.id}">${esc(ch)}</button>`).join('')}</div>
+          <div class="chips">${atajos().map(ch => `<button type="button" class="chip" data-chip="${esc(ch)}" data-emp="${e.id}">${esc(ch)}</button>`).join('')}</div>
         </div></div>`;
     }).join('');
     return `<details class="card cli" ${q || conTxt ? 'open' : ''}><summary class="card-h">
         <span class="chev">▶</span><h3 class="grow">${esc(c.nombre)}</h3>
         ${conTxt ? `<span class="tag warn">${conTxt}</span>` : ''}
         <span class="tag ${hechos === emps.length && emps.length ? 'ok' : ''}">${hechos}/${emps.length}</span></summary>
-      <div class="card-b">${items || '<div class="muted small">Sin empleados activos.</div>'}</div></details>`;
+      <div class="card-b">${items || '<div class="muted small">Sin empleados activos.</div>'}
+        <div class="row" style="margin-top:8px;border-top:1px solid var(--line);padding-top:8px">
+          <button type="button" class="btn sm" data-act="nuevo-emp" data-id="${c.id}">+ Agregar empleado</button>
+          <button type="button" class="btn sm" data-act="edit-cli" data-id="${c.id}">✎ Editar empleador</button></div></div></details>`;
   }).join('');
   return `<h2>Novedades ${esc(nombrePeriodo(periodo))}</h2>
     ${al.length ? `<div class="alerts">${al.map(a => `<div class="alert">${a}</div>`).join('')}</div>` : ''}
@@ -155,7 +162,8 @@ function vistaNovedades() {
       <textarea rows="2" data-nota-mes placeholder="Ej: aumento paritaria comercio, suma fija, feriados…">${esc(db.notasMes[periodo] || '')}</textarea></div></div>
     <input class="search" type="search" placeholder="Buscar empleado o empleador…" value="${esc(filtro)}" data-filtro style="width:100%;border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:9px 12px">
     ${bloques || '<div class="empty">Sin resultados.</div>'}
-    <p class="small muted">✓ = liquidado. Las novedades se guardan solas en este dispositivo.</p>`;
+    <div class="row"><button class="btn sm" data-act="nuevo-cli">+ Agregar empleador</button></div>
+    <p class="small muted">✓ = liquidado. ✎ edita el empleado, 🗑 borra la novedad del mes. Todo se guarda solo en este dispositivo.</p>`;
 }
 
 function vistaFichas() {
@@ -169,7 +177,8 @@ function vistaFichas() {
   const tabla = (y) => MESES.map((mn, i) => {
     const p = `${y}-${String(i + 1).padStart(2, '0')}`; const n = nov(e.id, p);
     return `<tr><td class="mes">${mn}</td><td class="x"><input type="checkbox" class="tick" data-nov-hecho="${e.id}" data-p="${p}" ${n.hecho ? 'checked' : ''} aria-label="Liquidado ${mn}"></td>
-      <td><input class="cell" data-nov-txt="${e.id}" data-p="${p}" value="${esc(n.texto)}" aria-label="Novedad ${mn}"></td></tr>`;
+      <td><input class="cell" data-nov-txt="${e.id}" data-p="${p}" value="${esc(n.texto)}" aria-label="Novedad ${mn}"></td>
+      <td class="x no-print">${n.texto || n.hecho ? `<button type="button" class="mini" data-act="clr-nov" data-id="${e.id}" data-p="${p}" title="Borrar ${mn}">🗑</button>` : ''}</td></tr>`;
   }).join('');
   return `<h2>Ficha anual</h2>
     <div class="card no-print"><div class="card-b" style="padding-top:12px">
@@ -179,7 +188,9 @@ function vistaFichas() {
       </div>
       <div class="row" style="margin-top:10px">
         <button class="btn sm" data-act="anio" data-d="-1">‹ ${anio - 1}</button><b>${anio}</b><button class="btn sm" data-act="anio" data-d="1">${anio + 1} ›</button>
-        <span class="grow"></span><button class="btn sm" data-act="imprimir">Imprimir</button>
+        <span class="grow"></span>${e ? `<button class="btn sm" data-act="edit-emp" data-id="${e.id}">✎ Editar empleado</button>` : ''}
+        <button class="btn sm" data-act="nuevo-emp" data-id="${fichaSel.cli}">+ Empleado</button>
+        <button class="btn sm" data-act="imprimir">Imprimir</button>
       </div></div></div>
     ${e ? `<div class="card"><div class="card-b" style="padding-top:14px">
       <h2 style="text-align:center;margin-bottom:6px">${esc(c.razon || c.nombre)}</h2>
@@ -190,8 +201,8 @@ function vistaFichas() {
         <div><b>Convenio:</b> ${esc(e.convenio)}</div>${e.legajo ? `<div><b>Legajo:</b> ${esc(e.legajo)}</div>` : ''}
         ${e.obs ? `<div style="grid-column:1/-1"><b>Obs.:</b> ${esc(e.obs)}</div>` : ''}
       </div>
-      <table class="ficha"><thead><tr><th>Meses</th><th class="x">Liq.</th><th>Novedad</th></tr></thead>
-        <tbody><tr><td colspan="3" class="year">${anio}</td></tr>${tabla(anio)}</tbody></table>
+      <table class="ficha"><thead><tr><th>Meses</th><th class="x">Liq.</th><th>Novedad</th><th class="x no-print"></th></tr></thead>
+        <tbody><tr><td colspan="4" class="year">${anio}</td></tr>${tabla(anio)}</tbody></table>
     </div></div>` : '<div class="empty">No hay empleados para este empleador.</div>'}`;
 }
 
@@ -232,7 +243,9 @@ function vistaEmpleados() {
 function vistaNotas() {
   return `<h2>Notas</h2><div class="card"><div class="card-b" style="padding-top:12px">
     <textarea data-notas rows="18" style="min-height:360px">${esc(db.notas)}</textarea>
-    <p class="small muted">Conceptos, códigos de VEP, vencimientos, recordatorios… Se guarda automáticamente.</p></div></div>`;
+    <p class="small muted">Conceptos, códigos de VEP, vencimientos, recordatorios… Se guarda automáticamente.</p></div></div>
+    <div class="card"><div class="card-h"><h3 class="grow">Atajos de novedades</h3><button class="btn sm" data-act="edit-atajos">✎ Editar</button></div>
+      <div class="card-b"><div class="chips" style="display:flex">${atajos().map(a => `<span class="chip">${esc(a)}</span>`).join('')}</div></div></div>`;
 }
 
 /* ---------- Diálogos ---------- */
@@ -356,8 +369,20 @@ document.addEventListener('click', async ev => {
   }
   else if (act === 'nota-ctl') {
     const k = ctl(id, periodo, true); const c = db.clientes.find(x => x.id === id);
-    const r = await dialogo(`Nota · ${c.nombre}`, `<textarea name="nota" rows="4" style="margin-top:8px">${esc(k.nota)}</textarea>`);
-    if (r) { k.nota = r.datos.nota.trim(); save(); render(); }
+    const r = await dialogo(`Nota · ${c.nombre}`, `<textarea name="nota" rows="4" style="margin-top:8px">${esc(k.nota)}</textarea>`,
+      { extra: k.nota ? '<button class="btn danger" value="del" formnovalidate>Borrar</button>' : '' });
+    if (r) { k.nota = r.accion === 'del' ? '' : r.datos.nota.trim(); save(); render(); }
+  }
+  else if (act === 'clr-nov') {
+    const p = t.dataset.p || periodo; const e = db.empleados.find(x => x.id === id);
+    if (!confirm(`¿Borrar la novedad de ${e.nombre} (${nombrePeriodo(p)})?`)) return;
+    delete db.novedades[id]?.[p]; save(); render(); toast('Novedad borrada');
+  }
+  else if (act === 'edit-atajos') {
+    const r = await dialogo('Atajos de novedades', `<p class="small muted">Uno por renglón. Aparecen como botones al escribir una novedad.</p>
+      <textarea name="atajos" rows="12">${esc(atajos().join('\n'))}</textarea>`, { extra: '<button class="btn" value="reset" formnovalidate>Restaurar</button>' });
+    if (!r) return;
+    db.atajos = r.accion === 'reset' ? null : r.datos.atajos.split('\n').map(x => x.trim()).filter(Boolean); save(); render();
   }
   else if (act === 'anio') { fichaSel.anio = String(+fichaSel.anio + +t.dataset.d); render(); }
   else if (act === 'imprimir') print();
