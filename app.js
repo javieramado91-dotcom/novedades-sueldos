@@ -48,7 +48,20 @@ function eventos(e, p) {
   }
   return out;
 }
-const avisosHTML = (e, p) => eventos(e, p).map(v => `<span class="aviso ${v.tipo}">${esc(v.txt)}</span>`).join('');
+// Escribe "N AÑOS DE ANTIGÜEDAD" como novedad en el mes aniversario (una sola vez: si se borra, no vuelve)
+function autoAntiguedad(e, p) {
+  if (!e.ingreso || !activoEn(e, p) || e.ingreso.slice(5, 7) !== p.slice(5, 7)) return false;
+  const a = antiguedad(e.ingreso, p); if (a < 1) return false;
+  if (db.novedades[e.id]?.[p]?.autoAntig) return false;
+  const n = nov(e.id, p, true); const txt = `${a} AÑO${a > 1 ? 'S' : ''} DE ANTIGÜEDAD`;
+  n.texto = n.texto ? txt + ' · ' + n.texto : txt; n.autoAntig = true; return true;
+}
+function aplicarAutos(emps, periodos) {
+  let cambio = false;
+  for (const e of emps) for (const p of periodos) cambio = autoAntiguedad(e, p) || cambio;
+  if (cambio) save();
+}
+const avisosHTML = (e, p) => eventos(e, p).filter(v => v.tipo !== 'antig').map(v => `<span class="aviso ${v.tipo}">${esc(v.txt)}</span>`).join('');
 function atajos() { return db.atajos?.length ? db.atajos : CHIPS; }
 function clientesOrd() { return db.clientes; }
 function empsDe(cid, soloActivos = true) { return db.empleados.filter(e => e.clienteId === cid && (!soloActivos || e.activo)); }
@@ -75,6 +88,7 @@ function render() {
   $('#periodo').value = periodo;
   const v = $('#view');
   if (!db) { v.innerHTML = vistaBienvenida(); return; }
+  aplicarAutos(db.empleados, [periodo]);
   v.innerHTML = ({ control: vistaControl, novedades: vistaNovedades, fichas: vistaFichas, empleados: vistaEmpleados, notas: vistaNotas })[tab]();
 }
 
@@ -192,6 +206,7 @@ function vistaFichas() {
   const e = db.empleados.find(x => x.id === fichaSel.emp);
   const c = cs.find(x => x.id === fichaSel.cli);
   const anio = +fichaSel.anio;
+  if (e) aplicarAutos([e], MESES.map((_, i) => `${anio}-${String(i + 1).padStart(2, '0')}`));
   const tabla = (y) => MESES.map((mn, i) => {
     const p = `${y}-${String(i + 1).padStart(2, '0')}`; const n = nov(e.id, p);
     return `<tr><td class="mes">${mn}</td><td class="x"><input type="checkbox" class="tick" data-nov-hecho="${e.id}" data-p="${p}" ${n.hecho ? 'checked' : ''} aria-label="Liquidado ${mn}"></td>
