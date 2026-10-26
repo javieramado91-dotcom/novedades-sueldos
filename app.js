@@ -82,11 +82,64 @@ function ctl(cid, p, crear) {
   return db.control[p][cid];
 }
 
+/* ---------- Recordatorios "a no olvidar" ---------- */
+// { id, texto, mes: 'YYYY-MM', repetir: una|mensual|anual, hasta: 'YYYY-MM'|'', cliId, listo: { 'YYYY-MM': true } }
+const REPETIR = { una: 'Sólo ese mes', mensual: 'Todos los meses', anual: 'Todos los años (ese mes)' };
+function recs() { return db?.recordatorios || []; }
+function aplica(r, p) {
+  if (!r.repetir || r.repetir === 'una') return r.mes === p;
+  if (p < r.mes || (r.hasta && p > r.hasta)) return false;
+  return r.repetir === 'mensual' || r.mes.slice(5) === p.slice(5);
+}
+const recsDe = p => recs().filter(r => aplica(r, p));
+const pendientes = p => recsDe(p).filter(r => !r.listo?.[p]);
+function descRec(r) {
+  const cli = db.clientes.find(c => c.id === r.cliId)?.nombre;
+  let rep = r.repetir === 'mensual' ? `todos los meses desde ${nombrePeriodo(r.mes)}`
+    : r.repetir === 'anual' ? `todos los años en ${MESES[+r.mes.slice(5) - 1]}` : nombrePeriodo(r.mes);
+  if (r.repetir && r.repetir !== 'una' && r.hasta) rep += ` hasta ${nombrePeriodo(r.hasta)}`;
+  return (cli ? cli + ' · ' : '') + rep;
+}
+function actualizarCampana() {
+  const n = db ? pendientes(periodo).length : 0, b = $('#btnCampana .badge');
+  b.textContent = n; b.hidden = !n;
+  $('#btnCampana').classList.toggle('activa', n > 0);
+  if (!$('#panel').hidden) renderPanel();
+}
+function renderPanel() {
+  const todos = recsDe(periodo), pend = todos.filter(r => !r.listo?.[periodo]), hechos = todos.filter(r => r.listo?.[periodo]);
+  const item = r => `<div class="rec ${r.listo?.[periodo] ? 'hecho' : ''}">
+      <input type="checkbox" class="tick" data-rec-listo="${r.id}" ${r.listo?.[periodo] ? 'checked' : ''} title="Listo este mes" aria-label="Listo">
+      <div class="grow"><div class="rec-txt">${esc(r.texto)}</div><div class="small muted">${esc(descRec(r))}</div></div>
+      <button type="button" class="mini" data-act="edit-rec" data-id="${r.id}" title="Editar">✎</button></div>`;
+  $('#panel').innerHTML = `<div class="panel-h"><b class="grow">🔔 A no olvidar · ${esc(nombrePeriodo(periodo))}</b>
+      <button type="button" class="mini" data-act="cerrar-panel" aria-label="Cerrar">✕</button></div>
+    <div class="panel-b">${pend.map(item).join('') || '<div class="muted small" style="padding:10px 0">Nada pendiente para este mes. 👌</div>'}
+      ${hechos.length ? `<div class="small muted" style="margin-top:8px">Ya resueltos</div>${hechos.map(item).join('')}` : ''}</div>
+    <div class="panel-f"><button type="button" class="btn sm primary" data-act="nuevo-rec">+ Nuevo recordatorio</button>
+      <button type="button" class="btn sm" data-act="ver-recs">Ver todos</button></div>`;
+}
+function abrirPanel(abrir = $('#panel').hidden) {
+  if (abrir) { renderPanel(); $('#panel').hidden = false; ocultarPop(); } else $('#panel').hidden = true;
+}
+// Aviso emergente por unos segundos con lo pendiente del mes
+function mostrarPop() {
+  const ps = db ? pendientes(periodo) : [], pop = $('#pop');
+  if (!ps.length) return ocultarPop();
+  pop.innerHTML = `<div class="pop-h"><b class="grow">🔔 A no olvidar en ${esc(nombrePeriodo(periodo))}</b><button type="button" class="mini" data-act="cerrar-pop" aria-label="Cerrar">✕</button></div>
+    <ul>${ps.slice(0, 4).map(r => `<li>${esc(r.texto)}</li>`).join('')}</ul>
+    ${ps.length > 4 ? `<div class="small">y ${ps.length - 4} más…</div>` : ''}<div class="pop-bar"></div>`;
+  pop.classList.remove('show'); void pop.offsetWidth; pop.classList.add('show');
+  clearTimeout(pop._t); pop._t = setTimeout(ocultarPop, 8000);
+}
+function ocultarPop() { const pop = $('#pop'); pop.classList.remove('show'); clearTimeout(pop._t); }
+
 /* ---------- Render ---------- */
 function render() {
   $$('.tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
   $('#periodo').value = periodo;
   const v = $('#view');
+  actualizarCampana();
   if (!db) { v.innerHTML = vistaBienvenida(); return; }
   aplicarAutos(db.empleados, [periodo]);
   v.innerHTML = ({ control: vistaControl, novedades: vistaNovedades, fichas: vistaFichas, empleados: vistaEmpleados, notas: vistaNotas })[tab]();
@@ -274,7 +327,17 @@ function vistaEmpleados() {
 }
 
 function vistaNotas() {
-  return `<h2>Notas</h2><div class="card"><div class="card-b" style="padding-top:12px">
+  const lista = [...recs()].sort((a, b) => a.mes.localeCompare(b.mes));
+  return `<h2>Notas</h2>
+    <div class="card" id="recordatorios"><div class="card-h"><h3 class="grow">🔔 Recordatorios a no olvidar</h3><button class="btn sm primary" data-act="nuevo-rec">+ Nuevo</button></div>
+      <div class="card-b">${lista.map(r => {
+        const hoy = aplica(r, periodo), ok = r.listo?.[periodo];
+        return `<div class="rec ${hoy && ok ? 'hecho' : ''}">
+          <div class="grow"><div class="rec-txt">${esc(r.texto)}</div><div class="small muted">${esc(descRec(r))}
+            ${hoy ? ` · <span class="tag ${ok ? 'ok' : 'warn'}">${ok ? 'listo este mes' : 'avisa este mes'}</span>` : ''}</div></div>
+          <button type="button" class="mini" data-act="edit-rec" data-id="${r.id}" title="Editar">✎</button></div>`;
+      }).join('') || '<div class="muted small">Todavía no hay recordatorios. Cargá lo que no tenés que olvidar y elegí en qué mes avisarte.</div>'}</div></div>
+    <div class="card"><div class="card-b" style="padding-top:12px">
     <textarea data-notas rows="18" style="min-height:360px">${esc(db.notas)}</textarea>
     <p class="small muted">Conceptos, códigos de VEP, vencimientos, recordatorios… Se guarda automáticamente.</p></div></div>
     <div class="card"><div class="card-h"><h3 class="grow">Atajos de novedades</h3><button class="btn sm" data-act="edit-atajos">✎ Editar</button></div>
@@ -287,7 +350,7 @@ function dialogo(titulo, cuerpo, { ok = 'Guardar', extra = '' } = {}) {
   // Botón oculto primero: Enter siempre equivale a "Guardar", nunca a Eliminar/Cancelar
   f.innerHTML = `<button value="ok" hidden aria-hidden="true" tabindex="-1"></button><h2>${esc(titulo)}</h2>${cuerpo}<div class="dlg-actions">${extra}<span class="grow"></span>
     <button class="btn" value="cancel" formnovalidate>Cancelar</button><button class="btn primary" value="ok">${esc(ok)}</button></div>`;
-  dlg.showModal();
+  ocultarPop(); dlg.showModal();
   return new Promise(res => {
     dlg.onclose = () => {
       const v = dlg.returnValue; if (v === 'cancel' || !v) return res(null);
@@ -338,6 +401,29 @@ async function editarEmpleado(e, clienteId) {
   } else {
     Object.assign(e, r.datos); e.nombre = e.nombre.trim().toUpperCase(); e.activo = !e.baja;
     if (nuevo) db.empleados.push(e);
+  }
+  save(); render();
+}
+
+async function editarRec(r) {
+  const nuevo = !r; r = r || { id: uid('r'), texto: '', mes: periodo, repetir: 'una', hasta: '', cliId: '', listo: {} };
+  const res = await dialogo(nuevo ? 'Nuevo recordatorio' : 'Editar recordatorio', `
+    <label class="f" for="f_texto">¿Qué no hay que olvidar?</label><textarea id="f_texto" name="texto" rows="3" required>${esc(r.texto)}</textarea>
+    <div class="grid2">${campo('mes', 'Avisarme en el mes', r.mes, 'month', 'required')}
+      <div><label class="f" for="f_rep">Repetir</label><select id="f_rep" name="repetir">${Object.entries(REPETIR).map(([k, v]) => `<option value="${k}" ${k === (r.repetir || 'una') ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
+      ${campo('hasta', 'Hasta el mes (si se repite, opcional)', r.hasta, 'month')}
+      <div><label class="f" for="f_rcli">Empleador (opcional)</label><select id="f_rcli" name="cliId"><option value="">— General —</option>${db.clientes.map(c => `<option value="${c.id}" ${c.id === r.cliId ? 'selected' : ''}>${esc(c.nombre)}</option>`).join('')}</select></div></div>`,
+    { extra: nuevo ? '' : '<button class="btn danger" value="del" formnovalidate>Eliminar</button>' });
+  if (!res) return;
+  if (res.accion === 'del') {
+    if (!confirm('¿Eliminar este recordatorio?')) return;
+    db.recordatorios = recs().filter(x => x.id !== r.id);
+  } else {
+    Object.assign(r, res.datos); r.texto = r.texto.trim();
+    if (!r.texto || !/^\d{4}-\d{2}$/.test(r.mes)) return toast('Falta el texto o el mes');
+    if (r.repetir === 'una' || r.hasta < r.mes) r.hasta = '';
+    if (nuevo) (db.recordatorios ||= []).push(r);
+    toast(aplica(r, periodo) ? 'Guardado · avisa este mes' : 'Recordatorio guardado');
   }
   save(); render();
 }
@@ -417,6 +503,14 @@ document.addEventListener('click', async ev => {
     if (!r) return;
     db.atajos = r.accion === 'reset' ? null : r.datos.atajos.split('\n').map(x => x.trim()).filter(Boolean); save(); render();
   }
+  else if (act === 'nuevo-rec') editarRec();
+  else if (act === 'edit-rec') editarRec(recs().find(r => r.id === id));
+  else if (act === 'cerrar-panel') abrirPanel(false);
+  else if (act === 'cerrar-pop') { ev.stopPropagation(); ocultarPop(); }
+  else if (act === 'ver-recs') {
+    abrirPanel(false); tab = 'notas'; localStorage.setItem(KEY + ':tab', tab); render();
+    $('#recordatorios')?.scrollIntoView({ block: 'start' });
+  }
   else if (act === 'anio') { fichaSel.anio = String(+fichaSel.anio + +t.dataset.d); render(); }
   else if (act === 'imprimir') print();
 });
@@ -432,6 +526,18 @@ document.addEventListener('change', ev => {
     if (tab === 'novedades') render();
   }
   else if (t.dataset.ficha) { fichaSel[t.dataset.ficha] = t.value; render(); }
+  else if (t.dataset.recListo) {
+    const r = recs().find(x => x.id === t.dataset.recListo); if (!r) return;
+    r.listo ||= {}; if (t.checked) r.listo[periodo] = true; else delete r.listo[periodo];
+    save(); render();
+  }
+});
+
+// Campanita: abre/cierra el panel; tocar el aviso emergente también lo abre; tocar afuera lo cierra
+$('#btnCampana').onclick = ev => { ev.stopPropagation(); abrirPanel(); };
+$('#pop').addEventListener('click', ev => { if (!ev.target.closest('[data-act]')) abrirPanel(true); });
+document.addEventListener('click', ev => {
+  if (!$('#panel').hidden && !ev.target.closest('#panel, #btnCampana, #dlg, #pop')) abrirPanel(false);
 });
 
 document.addEventListener('input', ev => {
@@ -447,7 +553,7 @@ document.addEventListener('input', ev => {
 function autosize(ta) { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 2 + 'px'; }
 new MutationObserver(() => $$('textarea[data-nov-txt]').forEach(autosize)).observe($('#view'), { childList: true });
 
-function setPeriodo(p) { if (!p) return; periodo = p; localStorage.setItem(KEY + ':periodo', p); fichaSel.anio = p.slice(0, 4); render(); }
+function setPeriodo(p) { if (!p) return; periodo = p; localStorage.setItem(KEY + ':periodo', p); fichaSel.anio = p.slice(0, 4); render(); mostrarPop(); }
 $('#periodo').addEventListener('change', e => setPeriodo(e.target.value));
 $('#prevMes').onclick = () => setPeriodo(sumarMes(periodo, -1));
 $('#nextMes').onclick = () => setPeriodo(sumarMes(periodo, 1));
@@ -465,3 +571,4 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
 if (navigator.storage?.persist) navigator.storage.persist();
 
 render();
+setTimeout(mostrarPop, 400);

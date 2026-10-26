@@ -140,6 +140,8 @@ dialog::backdrop { background: rgba(0,0,0,.4); }
   .brand span { display: none; }
   .brand { margin-right: 0; }
   .periodo { margin-right: auto; }
+  .periodo input[type=month] { width: 158px; padding: 6px 4px; }
+  .top { gap: 6px; }
   .ctl-table td.chk { width: 44px; }
   .ctl-table th { font-size: 10px; }
   .tick { width: 28px; height: 28px; }
@@ -160,3 +162,42 @@ dialog::backdrop { background: rgba(0,0,0,.4); }
 
 .aviso { display: inline-block; margin: 3px 4px 4px 0; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 99px; background: var(--warn-soft); color: var(--warn); }
 .aviso.cumple { background: var(--accent-soft); color: var(--accent); }
+input[type=month] { width: 100%; border: 1px solid var(--line); background: var(--surface-2); border-radius: 8px; padding: 8px 10px; }
+.periodo input[type=month] { width: auto; padding: 6px 8px; }
+
+/* Recordatorios: campanita, panel y aviso emergente */
+.bell { position: relative; font-size: 16px; }
+.bell.activa { border-color: var(--accent); background: var(--accent-soft); animation: ring 1.2s ease 1; }
+.bell .badge { position: absolute; top: -6px; right: -6px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px;
+  background: var(--danger); color: #fff; font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; }
+@keyframes ring { 0%, 100% { transform: rotate(0); } 15% { transform: rotate(14deg); } 30% { transform: rotate(-12deg); } 45% { transform: rotate(8deg); } 60% { transform: rotate(-4deg); } }
+.panel {
+  position: fixed; z-index: 15; top: calc(62px + env(safe-area-inset-top)); right: 16px; width: min(400px, calc(100vw - 32px));
+  max-height: calc(100vh - 160px); display: flex; flex-direction: column;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 10px 30px rgba(0,0,0,.18);
+}
+.panel[hidden] { display: none; }
+.panel-h, .panel-f { display: flex; gap: 8px; align-items: center; padding: 10px 14px; }
+.panel-h { border-bottom: 1px solid var(--line); }
+.panel-f { border-top: 1px solid var(--line); }
+.panel-b { overflow-y: auto; padding: 0 14px 8px; }
+.rec { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; border-top: 1px solid var(--line); }
+.rec:first-child { border-top: 0; }
+.rec .tick { flex: none; }
+.rec-txt { font-size: 14px; font-weight: 600; white-space: pre-wrap; }
+.rec.hecho .rec-txt { text-decoration: line-through; color: var(--muted); font-weight: 400; }
+.pop {
+  position: fixed; z-index: 20; left: 50%; top: calc(66px + env(safe-area-inset-top)); width: min(440px, calc(100vw - 32px));
+  transform: translate(-50%, -16px); opacity: 0; pointer-events: none; transition: opacity .25s, transform .25s; cursor: pointer;
+  background: var(--accent); color: #fff; border-radius: 14px; padding: 10px 14px 12px; box-shadow: 0 10px 30px rgba(0,0,0,.25); overflow: hidden;
+}
+.pop.show { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+.pop-h { display: flex; align-items: center; gap: 8px; }
+.pop .mini { background: rgba(255,255,255,.2); border-color: transparent; color: #fff; }
+.pop ul { margin: 6px 0 0; padding-left: 20px; font-size: 14px; }
+.pop li { white-space: pre-wrap; }
+.pop-bar { position: absolute; left: 0; bottom: 0; height: 3px; width: 100%; background: rgba(255,255,255,.7); transform-origin: left; }
+.pop.show .pop-bar { animation: barra 8s linear forwards; }
+@keyframes barra { to { transform: scaleX(0); } }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .pop { color: #1f1a17; } :root:not([data-theme="light"]) .pop .mini { color: #1f1a17; } }
+:root[data-theme="dark"] .pop, :root[data-theme="dark"] .pop .mini { color: #1f1a17; }

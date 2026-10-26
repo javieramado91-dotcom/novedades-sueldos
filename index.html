@@ -11,7 +11,7 @@
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Novedades">
-<link rel="stylesheet" href="styles.css?v=6">
+<link rel="stylesheet" href="styles.css?v=7">
 </head>
 <body>
 <header class="top">
@@ -24,8 +24,11 @@
     <input type="month" id="periodo" aria-label="Período">
     <button class="icon-btn" id="nextMes" aria-label="Mes siguiente">›</button>
   </div>
+  <button class="icon-btn bell" id="btnCampana" aria-label="Recordatorios a no olvidar" title="A no olvidar">🔔<span class="badge" hidden></span></button>
   <button class="btn install" id="btnInstalar" hidden>Instalar</button>
 </header>
+<div id="panel" class="panel" hidden></div>
+<div id="pop" class="pop" role="status"></div>
 
 <main id="view"></main>
 
@@ -40,6 +43,6 @@
 <dialog id="dlg"><form method="dialog" id="dlgForm"></form></dialog>
 <div id="toast" role="status"></div>
 
-<script src="app.js?v=6"></script>
+<script src="app.js?v=7"></script>
 </body>
 </html>
