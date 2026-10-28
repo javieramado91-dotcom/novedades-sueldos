@@ -5,6 +5,9 @@ const MESES = ['ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO', 'JULIO', '
 const CHIPS = ['Vacaciones', 'Lic. enfermedad', 'Lic. maternidad', 'Horas extra', 'Feriado trabajado', 'Adelanto', 'Faltas',
   'Pierde presentismo', 'Alta', 'Baja / despido', 'Renuncia', 'Aumento', 'SAC', 'Embargo', 'Cambio categoría', 'Sin novedad'];
 
+// Jornada de cada empleado (e.jornadaTipo). e.jornada queda como texto libre de modalidad (ej. MENSUAL).
+const JORNADAS = { completa: 'Completa', media: 'Media jornada (1/2)', cuarto: 'Un cuarto (1/4)', octavo: 'Un octavo (1/8)', otra: 'Otra' };
+
 let db = load();
 let tab = localStorage.getItem(KEY + ':tab') || 'control';
 let periodo = localStorage.getItem(KEY + ':periodo') || hoyPeriodo();
@@ -18,7 +21,19 @@ const uid = p => p + Date.now().toString(36) + Math.random().toString(36).slice(
 
 function hoyPeriodo() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; }
 function vacio() { return { version: 1, clientes: [], empleados: [], novedades: {}, control: {}, notas: '', notasMes: {} }; }
-function load() { try { const d = JSON.parse(localStorage.getItem(KEY)); if (d && d.version) return d; } catch { } return null; }
+function load() { try { const d = JSON.parse(localStorage.getItem(KEY)); if (d && d.version) return migrar(d); } catch { } return null; }
+// Completa jornadaTipo en empleados que no lo tienen, deduciéndolo del texto que ya había (1/4, cuarto, media, octavo…)
+function migrar(d) {
+  for (const e of d.empleados || []) {
+    if (e.jornadaTipo !== undefined) continue;
+    const t = `${e.jornada || ''} ${e.obs || ''} ${e.tarea || ''}`;
+    e.jornadaTipo = /1\s*\/\s*8|octavo/i.test(t) ? 'octavo' : /1\s*\/\s*4|cuarto/i.test(t) ? 'cuarto'
+      : /1\s*\/\s*2|media\s*jornada|medio\s*tiempo|jornada\s*parcial/i.test(t) ? 'media' : /jornada\s*completa|tiempo\s*completo/i.test(t) ? 'completa' : '';
+  }
+  return d;
+}
+const jornadaTxt = e => JORNADAS[e.jornadaTipo] || 'Sin definir';
+const jornadaSel = (e, attrs = '') => `<select ${attrs} aria-label="Jornada de ${esc(e.nombre)}"><option value="">— Jornada —</option>${Object.entries(JORNADAS).map(([k, v]) => `<option value="${k}" ${k === e.jornadaTipo ? 'selected' : ''}>${v}</option>`).join('')}</select>`;
 let saveTimer;
 function save() {
   clearTimeout(saveTimer);
@@ -282,7 +297,7 @@ function vistaFichas() {
       <h2 style="text-align:center;margin-bottom:6px">${esc(c.razon || c.nombre)}</h2>
       <div class="ficha-head">
         <div><b>Empleado:</b> ${esc(e.nombre)}</div><div><b>CUIL:</b> ${esc(e.cuil)}</div>
-        <div><b>Empleador:</b> ${esc(e.empleador)} ${esc(e.cuitEmpleador)}</div><div><b>Jornada:</b> ${esc(e.jornada)}</div>
+        <div><b>Empleador:</b> ${esc(e.empleador)} ${esc(e.cuitEmpleador)}</div><div><b>Jornada:</b> ${esc(jornadaTxt(e))}${e.jornada ? ` <span class="muted">(${esc(e.jornada)})</span>` : ''}</div>
         <div><b>Fecha ingreso:</b> ${fechaAR(e.ingreso)} ${e.ingreso ? `(${antiguedad(e.ingreso, `${anio}-12`)} años a dic.)` : ''}</div><div><b>Tarea:</b> ${esc(e.tarea)}</div>
         <div><b>Convenio:</b> ${esc(e.convenio)}</div>${e.nacimiento ? `<div><b>Nacimiento:</b> ${fechaAR(e.nacimiento)}</div>` : ''}${e.legajo ? `<div><b>Legajo:</b> ${esc(e.legajo)}</div>` : ''}
         ${e.obs ? `<div style="grid-column:1/-1"><b>Obs.:</b> ${esc(e.obs)}</div>` : ''}
@@ -294,8 +309,10 @@ function vistaFichas() {
 
 function vistaEmpleados() {
   const cs = clientesOrd();
+  const faltan = db.empleados.filter(e => e.activo && !e.jornadaTipo).length;
   return `<div class="row" style="margin-bottom:12px"><h2 class="grow" style="margin:0">Empleadores y empleados</h2>
       <button class="btn primary" data-act="nuevo-cli">+ Empleador</button></div>
+    <div class="small muted" style="margin-bottom:10px">Jornada de cada empleado (completa, media, 1/4, 1/8): <span id="jorFaltan" class="tag ${faltan ? 'warn' : 'ok'}">${faltan ? `Faltan definir ${faltan}` : 'Todos definidos'}</span></div>
     ${cs.map((c, i) => {
       const emps = db.empleados.filter(e => e.clienteId === c.id);
       return `<details class="card cli"><summary class="card-h"><span class="chev">▶</span>
@@ -312,6 +329,7 @@ function vistaEmpleados() {
           <div class="emp-list">${emps.map(e => `<div class="emp-item ${e.activo ? '' : 'inactivo'}">
             <div class="grow"><div class="emp-name">${esc(e.nombre)}</div>
             <div class="small muted">${esc(e.cuil)} · ${esc(e.tarea)} · ingreso ${fechaAR(e.ingreso)}${e.activo ? '' : ' · BAJA ' + fechaAR(e.baja)}</div></div>
+            ${jornadaSel(e, `class="jor ${e.jornadaTipo ? '' : 'falta'}" data-jornada="${e.id}"`)}
             <button class="btn sm" data-act="edit-emp" data-id="${e.id}">Editar</button></div>`).join('') || '<div class="muted small">Sin empleados.</div>'}</div>
         </div></details>`;
     }).join('')}
@@ -383,11 +401,12 @@ async function editarEmpleado(e, clienteId) {
   const nuevo = !e;
   const cli = db.clientes.find(c => c.id === (e?.clienteId || clienteId));
   e = e || { id: uid('e'), clienteId, nombre: '', cuil: '', empleador: cli?.razon || cli?.nombre || '', cuitEmpleador: cli?.cuit || '', legajo: '',
-    ingreso: '', tarea: '', convenio: cli?.convenio || '', jornada: 'MENSUAL', activo: true, baja: '', obs: '' };
+    ingreso: '', tarea: '', convenio: cli?.convenio || '', jornada: 'MENSUAL', jornadaTipo: '', activo: true, baja: '', obs: '' };
   const r = await dialogo(nuevo ? 'Nuevo empleado' : 'Editar empleado', `<div class="grid2">
     ${campo('nombre', 'Apellido y nombre', e.nombre, 'text', 'required')}${campo('cuil', 'CUIL', e.cuil)}
     ${campo('ingreso', 'Fecha de ingreso', e.ingreso, 'date')}${campo('nacimiento', 'Fecha de nacimiento', e.nacimiento || '', 'date')}${campo('tarea', 'Tarea / categoría', e.tarea)}
-    ${campo('convenio', 'Convenio', e.convenio)}${campo('jornada', 'Jornada / modalidad', e.jornada)}
+    ${campo('convenio', 'Convenio', e.convenio)}${campo('jornada', 'Modalidad (ej. MENSUAL)', e.jornada)}
+    <div><label class="f" for="f_jt">Jornada</label>${jornadaSel(e, 'id="f_jt" name="jornadaTipo"')}</div>
     ${campo('empleador', 'Empleador (razón social)', e.empleador)}${campo('cuitEmpleador', 'CUIT empleador', e.cuitEmpleador)}
     ${campo('legajo', 'Legajo', e.legajo)}
     <div><label class="f" for="f_cli">Grupo / planilla</label><select id="f_cli" name="clienteId">${db.clientes.map(c => `<option value="${c.id}" ${c.id === e.clienteId ? 'selected' : ''}>${esc(c.nombre)}</option>`).join('')}</select></div>
@@ -439,7 +458,7 @@ async function cargarSemilla() {
     const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(r.datos.pass), 'PBKDF2', false, ['deriveKey']);
     const key = await crypto.subtle.deriveKey({ name: 'PBKDF2', salt: b(enc.salt), iterations: enc.iter, hash: 'SHA-256' }, base, { name: 'AES-GCM', length: 256 }, false, ['decrypt']);
     const plano = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b(enc.iv) }, key, b(enc.data));
-    db = JSON.parse(new TextDecoder().decode(plano)); save(); render(); toast('Datos cargados');
+    db = migrar(JSON.parse(new TextDecoder().decode(plano))); save(); render(); toast('Datos cargados');
   } catch (e) { toast('Contraseña incorrecta o sin conexión'); }
 }
 
@@ -456,7 +475,7 @@ function importar() {
       const d = JSON.parse(await i.files[0].text());
       if (!d.version || !Array.isArray(d.empleados)) throw 0;
       if (db && !confirm('¿Reemplazar los datos actuales por el respaldo?')) return;
-      db = d; save(); render(); toast('Respaldo importado');
+      db = migrar(d); save(); render(); toast('Respaldo importado');
     } catch { toast('Archivo no válido'); }
   };
   i.click();
@@ -526,6 +545,11 @@ document.addEventListener('change', ev => {
     if (tab === 'novedades') render();
   }
   else if (t.dataset.ficha) { fichaSel[t.dataset.ficha] = t.value; render(); }
+  else if (t.dataset.jornada) {
+    const e = db.empleados.find(x => x.id === t.dataset.jornada); if (!e) return;
+    e.jornadaTipo = t.value; save(); t.classList.toggle('falta', !t.value);
+    const c = $$(`select[data-jornada]`).filter(s => !s.value).length; $('#jorFaltan')?.replaceChildren(c ? `Faltan definir ${c}` : 'Todos definidos');
+  }
   else if (t.dataset.recListo) {
     const r = recs().find(x => x.id === t.dataset.recListo); if (!r) return;
     r.listo ||= {}; if (t.checked) r.listo[periodo] = true; else delete r.listo[periodo];

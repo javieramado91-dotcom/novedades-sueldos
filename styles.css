@@ -201,3 +201,6 @@ input[type=month] { width: 100%; border: 1px solid var(--line); background: var(
 @keyframes barra { to { transform: scaleX(0); } }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .pop { color: #1f1a17; } :root:not([data-theme="light"]) .pop .mini { color: #1f1a17; } }
 :root[data-theme="dark"] .pop, :root[data-theme="dark"] .pop .mini { color: #1f1a17; }
+
+.jor { width: auto; max-width: 150px; font-size: 12px; padding: 4px 6px; }
+.jor.falta { border-color: var(--warn); background: var(--warn-soft); }

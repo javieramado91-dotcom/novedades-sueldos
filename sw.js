@@ -1,6 +1,6 @@
 // Service worker: guarda la app en caché para que funcione sin conexión.
-const CACHE = 'novedades-sueldos-v7';
-const ARCHIVOS = ['./', 'index.html', 'styles.css?v=7', 'app.js?v=7', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'data/seed.enc.json'];
+const CACHE = 'novedades-sueldos-v8';
+const ARCHIVOS = ['./', 'index.html', 'styles.css?v=8', 'app.js?v=8', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'data/seed.enc.json'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ARCHIVOS)).then(() => self.skipWaiting()));
