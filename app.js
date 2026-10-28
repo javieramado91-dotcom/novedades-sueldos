@@ -6,7 +6,7 @@ const CHIPS = ['Vacaciones', 'Lic. enfermedad', 'Lic. maternidad', 'Horas extra'
   'Pierde presentismo', 'Alta', 'Baja / despido', 'Renuncia', 'Aumento', 'SAC', 'Embargo', 'Cambio categoría', 'Sin novedad'];
 
 // Jornada de cada empleado (e.jornadaTipo). e.jornada queda como texto libre de modalidad (ej. MENSUAL).
-const JORNADAS = { completa: 'Completa', media: 'Media jornada (1/2)', cuarto: 'Un cuarto (1/4)', octavo: 'Un octavo (1/8)', otra: 'Otra' };
+const JORNADAS = { completa: 'Completa', media: 'Media jornada (1/2)', cuarto: 'Un cuarto (1/4)', octavo: 'Un octavo (1/8)', hs30: '30 hs semanales', hs32: '32 hs semanales', otra: 'Otra' };
 
 let db = load();
 let tab = localStorage.getItem(KEY + ':tab') || 'control';
@@ -28,7 +28,7 @@ function migrar(d) {
     if (e.jornadaTipo !== undefined) continue;
     const t = `${e.jornada || ''} ${e.obs || ''} ${e.tarea || ''}`;
     e.jornadaTipo = /1\s*\/\s*8|octavo/i.test(t) ? 'octavo' : /1\s*\/\s*4|cuarto/i.test(t) ? 'cuarto'
-      : /1\s*\/\s*2|media\s*jornada|medio\s*tiempo|jornada\s*parcial/i.test(t) ? 'media' : /jornada\s*completa|tiempo\s*completo/i.test(t) ? 'completa' : '';
+      : /1\s*\/\s*2|media\s*jornada|medio\s*tiempo|jornada\s*parcial/i.test(t) ? 'media' : /\b30\s*(hs|horas)/i.test(t) ? 'hs30' : /\b32\s*(hs|horas)/i.test(t) ? 'hs32' : /jornada\s*completa|tiempo\s*completo/i.test(t) ? 'completa' : '';
   }
   return d;
 }
