@@ -1,5 +1,5 @@
 // Service worker: guarda la app en caché para que funcione sin conexión.
-const CACHE = 'novedades-sueldos-v9';
+const CACHE = 'novedades-sueldos-v10';
 const ARCHIVOS = ['./', 'index.html', 'styles.css?v=9', 'app.js?v=9', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'data/seed.enc.json'];
 
 self.addEventListener('install', e => {

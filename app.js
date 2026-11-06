@@ -137,17 +137,35 @@ function renderPanel() {
 function abrirPanel(abrir = $('#panel').hidden) {
   if (abrir) { renderPanel(); $('#panel').hidden = false; ocultarPop(); } else $('#panel').hidden = true;
 }
-// Aviso emergente por unos segundos con lo pendiente del mes
+// Aviso en 3 tiempos: pantalla completa (7 s) -> tarjeta chica (8 s) -> desaparece y queda la campanita
+const SEG_FULL = 7000, SEG_POP = 8000;
 function mostrarPop() {
-  const ps = db ? pendientes(periodo) : [], pop = $('#pop');
-  if (!ps.length) return ocultarPop();
+  const ps = db ? pendientes(periodo) : [], full = $('#full');
+  ocultarPop();
+  if (!ps.length) return;
+  full.innerHTML = `<div class="full-box"><div class="full-bell">🔔</div>
+    <h2>¡A no olvidar en ${esc(nombrePeriodo(periodo))}!</h2>
+    <ul>${ps.map(r => `<li>${esc(r.texto)}</li>`).join('')}</ul>
+    <button type="button" class="btn primary full-ok" data-act="cerrar-full">Entendido</button>
+    <div class="full-bar"></div></div>`;
+  full.hidden = false; void full.offsetWidth; full.classList.add('show');
+  clearTimeout(full._t); full._t = setTimeout(pasarAPop, SEG_FULL);
+}
+function pasarAPop() {
+  const full = $('#full'), pop = $('#pop'), ps = db ? pendientes(periodo) : [];
+  clearTimeout(full._t); full.classList.remove('show'); full.hidden = true;
+  if (!ps.length) return;
   pop.innerHTML = `<div class="pop-h"><b class="grow">🔔 A no olvidar en ${esc(nombrePeriodo(periodo))}</b><button type="button" class="mini" data-act="cerrar-pop" aria-label="Cerrar">✕</button></div>
     <ul>${ps.slice(0, 4).map(r => `<li>${esc(r.texto)}</li>`).join('')}</ul>
     ${ps.length > 4 ? `<div class="small">y ${ps.length - 4} más…</div>` : ''}<div class="pop-bar"></div>`;
   pop.classList.remove('show'); void pop.offsetWidth; pop.classList.add('show');
-  clearTimeout(pop._t); pop._t = setTimeout(ocultarPop, 8000);
+  clearTimeout(pop._t); pop._t = setTimeout(ocultarPop, SEG_POP);
 }
-function ocultarPop() { const pop = $('#pop'); pop.classList.remove('show'); clearTimeout(pop._t); }
+function ocultarPop() {
+  const pop = $('#pop'), full = $('#full');
+  pop.classList.remove('show'); clearTimeout(pop._t);
+  full.classList.remove('show'); full.hidden = true; clearTimeout(full._t);
+}
 
 /* ---------- Render ---------- */
 function render() {
@@ -559,6 +577,7 @@ document.addEventListener('change', ev => {
 
 // Campanita: abre/cierra el panel; tocar el aviso emergente también lo abre; tocar afuera lo cierra
 $('#btnCampana').onclick = ev => { ev.stopPropagation(); abrirPanel(); };
+$('#full').addEventListener('click', ev => { if (ev.target.closest('[data-act="cerrar-full"]') || ev.target.id === 'full') pasarAPop(); });
 $('#pop').addEventListener('click', ev => { if (!ev.target.closest('[data-act]')) abrirPanel(true); });
 document.addEventListener('click', ev => {
   if (!$('#panel').hidden && !ev.target.closest('#panel, #btnCampana, #dlg, #pop')) abrirPanel(false);
